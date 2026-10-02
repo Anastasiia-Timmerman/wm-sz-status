@@ -10,7 +10,10 @@
  *     дедлайна текущей СЗ;
  *  2. страница статуса /about-status/order?n=26 (копия страницы order0025): заголовок
  *     и список этапов (блок T508) — пройденные с галочкой, текущий с точкой;
- *  3. поиск на /about-status: номер закупки ведёт на страницу статуса.
+ *  3. поиск на /about-status: номер закупки ведёт на страницу статуса;
+ *  4. корзина (блок T706): скрытое поле sz = номер текущей СЗ («0026») — его подставляет
+ *     письмо покупателю ({{sz}} в шаблоне: Тильда → Платёжные системы → Общие настройки),
+ *     номер в письме больше не правится руками.
  *
  * Правило: любая ошибка (файл не загрузился, Тильда поменяла разметку) — страница
  * остаётся такой, как опубликована. На <html> ставится data-wm-status: ok / fallback —
@@ -130,12 +133,24 @@
     return 1;
   }
 
+  // ── 4. номер СЗ в заказе ──────────────────────────────────────────────────
+  function cartField(cur) {
+    var forms = document.querySelectorAll('form[data-formcart="y"]');
+    Array.prototype.forEach.call(forms, function (f) {
+      var i = f.querySelector('input[name="sz"]');
+      if (!i) { i = document.createElement("input"); i.type = "hidden"; i.name = "sz"; f.appendChild(i); }
+      i.value = sz4(cur.n);
+    });
+    return forms.length ? 1 : 0;
+  }
+
   ready(function () {
     load().then(function (data) {
       var done = 0;
       try { done += timers(data.current); } catch (e) { mark("fallback", "timer: " + e.message); return; }
       try { done += statusPage(data); } catch (e) { mark("fallback", "status: " + e.message); return; }
       try { done += search(data); } catch (e) { mark("fallback", "search: " + e.message); return; }
+      try { done += cartField(data.current); } catch (e) { mark("fallback", "cart: " + e.message); return; }
       root.setAttribute("data-wm-sz", String(data.current.n));
       mark("ok");
     }).catch(function (e) { mark("fallback", "load: " + e.message); });
