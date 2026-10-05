@@ -27,6 +27,9 @@
   var root = document.documentElement;
   var PATH = window.WM_TEST_PATH || location.pathname;      // подмена адреса — только для проверки
   var QUERY = window.WM_TEST_QUERY || location.search;
+  // номер текущей СЗ на случай, если sz-status.json не загрузился: подставляет скрипты/опубликовать-статус.py
+  // при каждой публикации (в репозитории здесь null). Без него письмо покупателю ушло бы без номера закупки.
+  var ЗАПАС_СЗ = 26;
 
   function mark(state, why) {
     root.setAttribute("data-wm-status", state);
@@ -134,17 +137,37 @@
   }
 
   // ── 4. номер СЗ в заказе ──────────────────────────────────────────────────
+  // 04.10.2026 вечером шесть писем подряд ушли без номера, хотя на открытой странице поле стояло. Поэтому поле
+  // ставится не один раз при загрузке, а: сразу; в каждую форму корзины, которую Тильда дорисует позже; и ещё
+  // раз в момент «Оформить заказ» (до того, как Тильда соберёт форму). Номер — из данных, а без них — ЗАПАС_СЗ.
+  var cartN = null;
+  function putField(f) {
+    if (!cartN) return;
+    var i = f.querySelector('input[name="sz"]');
+    if (!i) { i = document.createElement("input"); i.type = "hidden"; i.name = "sz"; f.appendChild(i); }
+    i.value = sz4(cartN);
+  }
+  function allCarts() { Array.prototype.forEach.call(document.querySelectorAll('form[data-formcart="y"]'), putField); }
+  var cartWatched = false;
+  function watchCarts() {
+    if (cartWatched) return; cartWatched = true;
+    function onSend(e) {
+      var f = e.target && e.target.closest && e.target.closest('form[data-formcart="y"]');
+      if (f) putField(f);
+    }
+    document.addEventListener("submit", onSend, true);           // перехват раньше обработчиков Тильды
+    document.addEventListener("click", onSend, true);
+    document.addEventListener("touchstart", onSend, true);
+    if (window.MutationObserver) new MutationObserver(allCarts).observe(document.documentElement, { childList: true, subtree: true });
+  }
   function cartField(cur) {
-    var forms = document.querySelectorAll('form[data-formcart="y"]');
-    Array.prototype.forEach.call(forms, function (f) {
-      var i = f.querySelector('input[name="sz"]');
-      if (!i) { i = document.createElement("input"); i.type = "hidden"; i.name = "sz"; f.appendChild(i); }
-      i.value = sz4(cur.n);
-    });
-    return forms.length ? 1 : 0;
+    cartN = cur && cur.n ? cur.n : cartN;
+    watchCarts(); allCarts();
+    return document.querySelectorAll('form[data-formcart="y"]').length ? 1 : 0;
   }
 
   ready(function () {
+    if (ЗАПАС_СЗ) { try { cartField({ n: ЗАПАС_СЗ }); } catch (e) {} }    // номер в корзине есть, даже если данные не придут
     load().then(function (data) {
       var done = 0;
       try { done += timers(data.current); } catch (e) { mark("fallback", "timer: " + e.message); return; }
