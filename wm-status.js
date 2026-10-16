@@ -16,7 +16,8 @@
  *     в HEAD Тильды (см. сайт/README.md) прячет список до загрузки классом wm-wait и пишет
  *     «загружаем статус…»; скрипт снимает класс, а при сбое ставит wm-fail — «обновите
  *     страницу», чужих этапов покупатель не видит;
- *  3. поиск на /about-status: номер закупки ведёт на страницу статуса;
+ *  3. поиск на /about-status: номер закупки ведёт на страницу статуса; подсказки Тильды для СЗ из данных
+ *     ведут на неё же («Ничего не найдено» для новых СЗ заменяется своей строкой);
  *  4. корзина (блок T706): скрытое поле sz = номер текущей СЗ («0026») — его подставляет
  *     письмо покупателю ({{sz}} в шаблоне: Тильда → Платёжные системы → Общие настройки),
  *     номер в письме больше не правится руками.
@@ -129,7 +130,7 @@
     var title = document.querySelector(".t-section__title");
     if (!sz && pn.old) return 0;              // старая СЗ, которой нет в данных: ручная страница верна как есть
     if (!sz) {
-      if (title) title.textContent = "закупка №" + sz4(+m[1]) + " не найдена — проверьте номер в письме";
+      if (title) title.textContent = "закупка №" + sz4(pn.n) + " не найдена — проверьте номер в письме";
       list.style.display = "none";
       return 1;
     }
@@ -163,11 +164,51 @@
     if (!/\/about-status\/?$/.test(PATH)) return 0;
     var input = document.querySelector(".t838__input");
     if (!input) return 0;
-    function go(e) {
+    function typed() {                                          // номер СЗ из поля («27», «0027», «№27») или 0
       var m = String(input.value || "").match(/^\s*№?\s*0*(\d{1,4})\s*$/);
-      if (!m || !data.sz[String(+m[1])]) return;                // не номер или старая СЗ — поиск Тильды
+      return m ? +m[1] : 0;
+    }
+    function go(e) {
+      var n = typed();
+      if (!n || !data.sz[String(n)]) return;                    // не номер или старая СЗ — поиск Тильды
       if (e) { e.preventDefault(); e.stopImmediatePropagation(); }
-      location.href = "/about-status/order?n=" + (+m[1]);
+      location.href = "/about-status/order?n=" + n;
+    }
+    // Подсказки Тильды (.t-site-search-dm под полем) строит она из своих опубликованных страниц: для СЗ без
+    // отдельной страницы (с №0027) — «Ничего не найдено», хотя /about-status/order?n=27 живёт; у старых 0021–0026
+    // подсказка ведёт на застывшую ручную страницу, а надпись «в процессе» там уже не обновляется. Поэтому
+    // после каждой перерисовки списка: строки с номером из данных — на новую страницу и с текущим статусом;
+    // введён номер из данных, а строки для него нет — добавляем свою (разметка и классы Тильды), «Ничего не
+    // найдено» убираем. Идемпотентно: когда править нечего, список не трогаем (иначе наблюдатель зациклится).
+    function label(s) { return "Закупка №" + sz4(s.n) + " - " + (s.done ? "завершена" : "в процессе"); }
+    function fixDropdown() {
+      var dm = input.parentNode && input.parentNode.querySelector(".t-site-search-dm");
+      if (!dm) return;
+      var want = typed(), have = false;
+      Array.prototype.forEach.call(dm.querySelectorAll(".t-site-search-dm__result"), function (row) {
+        var a = row.querySelector("a"), t = row.querySelector(".t-site-search-dm__result__title");
+        var m = t && /^Закупка №0*(\d{1,4}) - /.exec(t.textContent);
+        var s = m && data.sz[String(+m[1])];
+        if (!a || !s) return;
+        var href = "/about-status/order?n=" + s.n;
+        if (a.getAttribute("href") !== href) a.setAttribute("href", href);
+        if (t.textContent !== label(s)) t.textContent = label(s);
+        if (s.n === want) have = true;
+      });
+      var own = want && data.sz[String(want)];
+      if (!own || have) return;
+      if (dm.querySelector(".t-site-search-dm__result a") === null) dm.innerHTML = "";   // там одно «Ничего не найдено»
+      var row = document.createElement("div"); row.className = "t-site-search-dm__result";
+      var a = document.createElement("a"); a.target = "_blank"; a.href = "/about-status/order?n=" + own.n;
+      var t = document.createElement("div"); t.className = "t-site-search-dm__result__title t-text"; t.textContent = label(own);
+      var b = document.createElement("div"); b.className = "t-site-search-dm__result__body t-text"; b.textContent = "проверим статус закупки? статус совместной закупки";
+      a.appendChild(t); a.appendChild(b); row.appendChild(a);
+      dm.insertBefore(row, dm.firstChild);
+    }
+    var host = input.parentNode;
+    if (host && window.MutationObserver) {
+      new MutationObserver(function () { try { fixDropdown(); } catch (e) { mark("fallback", "dropdown: " + e.message); } })
+        .observe(host, { childList: true, subtree: true });
     }
     input.addEventListener("keydown", function (e) { if (e.key === "Enter") go(e); }, true);
     var form = input.closest("form"); if (form) form.addEventListener("submit", go, true);
