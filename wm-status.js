@@ -37,7 +37,7 @@
   var QUERY = window.WM_TEST_QUERY || location.search;
   // номер текущей СЗ на случай, если sz-status.json не загрузился: подставляет скрипты/опубликовать-статус.py
   // при каждой публикации (в репозитории здесь null). Без него письмо покупателю ушло бы без номера закупки.
-  var ЗАПАС_СЗ = 27;
+  var ЗАПАС_СЗ = 28;
 
   function mark(state, why) {
     root.setAttribute("data-wm-status", state);
