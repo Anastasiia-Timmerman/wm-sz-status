@@ -10,7 +10,8 @@
  *     дедлайна текущей СЗ;
  *  2. страница статуса /about-status/order?n=26 (копия страницы order0025) и старые ручные
  *     /about-status/order0026 и т. п.: заголовок и список этапов (блок T508) — пройденные с
- *     галочкой, текущий с точкой. 13.10.2026 покупательница 0026: «статусы прыгают — то три,
+ *     галочкой, а что идёт сейчас («едет в Москву», «на фасовке») — с точкой (с 06.11.2026; раньше точкой
+ *     горел последний пройденный этап, и «прибыл в Москву» читали как «готово»). 13.10.2026 покупательница 0026: «статусы прыгают — то три,
  *     то самый первый один». Пока скрипт грузился, живая страница показывала опубликованную
  *     копию 0025, а поиск Тильды вёл на старую ручную order0026 («сбор заказов»). Теперь: код
  *     в HEAD Тильды (см. сайт/README.md) прячет список до загрузки классом wm-wait и пишет
@@ -138,9 +139,11 @@
     var tplDone = items[0], tplNow = items[items.length - 1], ownCheck = items.length < 2;
     var stages = sz.stages;
     var html = document.createDocumentFragment();
+    var v2 = data.v >= 2;                     // v2 (06.11.2026): пройденное — галочкой, точкой — только строка «сейчас» (now);
+                                              // старые данные без v — по-старому: точкой последний этап
     stages.forEach(function (s, i) {
       var last = i === stages.length - 1;
-      var now = last && !sz.done;
+      var now = v2 ? !!s.now : (last && !sz.done);
       var li = (now ? tplNow : tplDone).cloneNode(true);
       if (!now && ownCheck) asDone(li);
       var name = li.querySelector(".t-name"), descr = li.querySelector(".t508__descr, .t-descr");
